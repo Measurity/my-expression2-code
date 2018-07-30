@@ -1,0 +1,13 @@
+### VisualStudioCode ###
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+### Expression 2 ###
+e2shared
+_autosave_.txt
+_helloworld_.txt
+_shutdown_.txt
+_tabs_.txt

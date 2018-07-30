@@ -1,0 +1,305 @@
+@name libs/chatter
+@inputs 
+@outputs 
+@persist Chatters:table
+@trigger 
+if (first()) {
+    Chatters = table()
+    
+    function addChatter(Name:string) {
+        Chatters[Name,table] = table()
+    }
+
+    function chatterPrint(Msg:string) {
+        if (Msg:length() <= 0 ) {
+            return
+        }
+        print("[CHATTER]: " + Msg)
+    }
+
+    function printChatters() {
+        chatterPrint("All chatters")
+        foreach (K,V:table = Chatters) {
+            print("\t" + K)
+            printTable(V)
+        }
+    }
+    
+    function addChatterCmd(Name:string, Cmd:string, OptionalCmdName:string) {
+        if (Name:length() <= 0 || Cmd:length() <= 0) {
+            chatterPrint("ERROR: Cannot add chatter cmd with empty name or cmd.")
+            return
+        }
+        Name = Name:lower()
+        if (!Chatters:exists(Name)) {
+            chatterPrint("ERROR: Chatter '" + Name + "' does not exist.")
+            return
+        }
+        
+        local Module = Chatters[Name,table]
+        if (!Module:exists("cmds")) {
+            Module["cmds", table] = table()
+        }
+        local Cmds = Module["cmds",table]
+        local CmdTable = table()
+        CmdTable["users", array] = array(owner())
+        if (OptionalCmdName:length() > 0) {
+            CmdTable["name", string] = OptionalCmdName:lower()
+        } else {
+            CmdTable["name", string] = Cmd
+        }
+        Cmds[Cmd,table] = CmdTable
+    }
+    
+    function addChatterCmd(Name:string, Cmd:string) {
+        addChatterCmd(Name, Cmd, "")
+    }
+    
+    function number hasChatterAccess(User:entity, Chatter:table) {
+        foreach (K,U:entity = Chatter["users",array]) {
+            if (U == User) {
+                return 1
+            }
+        }
+        
+        return 0
+    }
+    
+    function number hasChatterCmdAccess(User:entity, Chatter:table, Cmd:string) {
+        if (hasChatterAccess(User, Chatter)) {
+            return 1
+        }
+        
+        local Cmds = Chatter["cmds",table]
+        if (Cmds:exists(Cmd)) {
+            local CmdTable = Cmds[Cmd,table]
+            if (CmdTable:exists("users")) {
+                foreach (K,U:entity = CmdTable["users",array]) {
+                    if (U == User) {
+                        return 1
+                    }
+                }
+            }
+        }
+        
+        return 0
+    }
+    
+    function number addChatterAccess(User:entity, Chatter:string) {
+        if (!User:isPlayer()) {
+            chatterPrint("ERROR: Cannot add access to non-player entity.")
+            return 0
+        }
+        if (!Chatters:exists(Chatter)) {
+            chatterPrint("ERROR: Cannot add access to unknown chatter " + Chatter)
+            return 0
+        }
+        
+        local ChatterTable = Chatters[Chatter,table]
+        if (!ChatterTable:exists("users")) {
+            ChatterTable["users",array] = array(User)
+        } else {
+            foreach (K,U:entity = ChatterTable["users",array]) {
+                if (U == User) {
+                    return 0
+                }
+                
+                ChatterTable["users",array]:pushEntity(User)
+                return 1
+            }
+        }
+        
+        return 1
+    }
+    
+    function number addChatterCmdAccess(User:entity, Chatter:string, Cmd:string) {
+        if (!Chatters:exists(Chatter)) {
+            chatterPrint("ERROR: Cannot add access to unknown chatter " + Chatter)
+            return 0
+        }
+        
+        local CmdsTable = Chatters[Chatter,table]["cmds",table]
+        if (!CmdsTable:exists(Cmd)) {
+            chatterPrint("ERROR: Cannot add access to unknown command.")
+            return 0
+        }
+        
+        local CmdTable = CmdsTable[Cmd,table]
+        if (!CmdTable:exists("users")) {
+            CmdTable["users",array] = array(User)
+        } else {
+            foreach (K,U:entity = CmdTable["users",array]) {
+                if (U == User) {
+                    return 0
+                }
+            }
+            CmdTable["users",array]:pushEntity(User)
+        }
+        
+        return 1
+    }
+    
+    function number removeChatterAccess(User:entity, Chatter:string) {
+        if (!Chatters:exists(Chatter)) {
+            chatterPrint("ERROR: Cannot remove access to unknown chatter " + Chatter)
+            return 0
+        }
+        
+        local ChatterTable = Chatters[Chatter,table]
+        if (ChatterTable:exists("users")) {
+            foreach (K,U:entity = ChatterTable["users",array]) {
+                if (U == User) {
+                    ChatterTable["users",array]:remove(K)
+                    return 1
+                }
+            }
+        }
+        
+        return 0
+    }
+    
+    function number removeChatterAccessAll(User:entity, Chatter:string) {
+        if (!Chatters:exists(Chatter)) {
+            chatterPrint("ERROR: Cannot remove access to unknown chatter " + Chatter)
+            return 0
+        }
+        
+        local Result = 0
+        local ChatterTable = Chatters[Chatter,table]
+        if (ChatterTable:exists("users")) {
+            foreach (K,U:entity = ChatterTable["users",array]) {
+                if (U == User) {
+                    ChatterTable["users",array]:remove(K)
+                    Result = 1
+                }
+            }
+        }
+        
+        foreach (K,CmdTable:table = ChatterTable["cmds",table]) {
+            if (!CmdTable:exists("users")) {
+                continue
+            }
+            
+            foreach (N,U:entity = CmdTable["users",array]) {
+                if (U == User) {
+                    CmdTable["users",array]:remove(N)
+                    Result = 1
+                }
+            }
+        }
+        
+        return Result
+    }
+    
+    function number removeChatterCmdAccess(User:entity, Chatter:string, Cmd:string) {
+        if (!Chatters:exists(Chatter)) {
+            chatterPrint("ERROR: Cannot remove access to unknown chatter " + Chatter)
+            return 0
+        }
+        
+        local CmdsTable = Chatters[Chatter,table]["cmds", table]
+        if (!CmdsTable:exists(Cmd)) {
+            chatterPrint("ERROR: Cannot remove access to unknown command " + Cmd)
+            return 0
+        }
+        
+        local CmdTable = CmdsTable[Cmd, table]
+        if (!CmdTable:exists("users")) {
+            return 0
+        }
+        
+        foreach (K,U:entity = CmdTable["users",array]) {
+            if (U == User) {
+                CmdTable["users",array]:remove(K)
+                return 1
+            }
+        }
+        
+        return 0
+    }
+    
+    function string friendlyNameToCmd(Chatter:table, UserInput:string) {
+        foreach (C,CmdTable:table = Chatter["cmds",table]) {
+            if (C == UserInput || CmdTable["name",string] == UserInput) {
+                return C
+            }
+        }
+        
+        return UserInput
+    }
+    
+    function doChatter() {
+        local User = lastSpoke()
+        local Said = User:lastSaid():explode(" ")
+        if (Said:count() > 2 && Said[1,string] == "#") {
+            hideChat(User == owner())
+            local RequestedChatter = Said[2,string]:lower()
+            if (Chatters:exists(RequestedChatter)) {
+                local Chatter = Chatters[RequestedChatter,table]
+                local Cmd = friendlyNameToCmd(Chatter, Said[3,string])
+                if (Chatter["cmds",table]:exists(Cmd)) {                    
+                    if (!hasChatterCmdAccess(User, Chatter, Cmd)) {
+                        chatterPrint("Insufficient rights for '" + User:name() + "' to run command: " + Cmd)
+                    } else {
+                        Cmd()
+                    }
+                } else {
+                    if (User == owner()) {
+                        chatterPrint("Command '" + RequestedChatter + "' -> '" + Cmd + "' doesn't exist.")
+                    }
+                }
+            }
+        } else {
+            hideChat(0)
+        }
+    }
+    
+    #[
+        Chatter controller functions
+    ]#
+    
+    function addUserChatterCmd() {
+        local Said = lastSaid():explode(" ")
+        Said:shift()
+        Said:shift()
+        Said:shift()
+        
+        if (Said:count() >= 3) {
+            local Ply = findPlayerByName(Said[1,string])
+            if (!Ply:isPlayer()) {
+                print("No player found.")
+                return
+            }
+            addChatterCmdAccess(Ply, Said[2,string], Said[3,string])
+        }
+    }
+
+    function removeUserChatterCmd() {
+        local Said = lastSaid():explode(" ")
+        Said:shift()
+        Said:shift()
+        Said:shift()
+        
+        if (Said:count() >= 3) {
+            local Ply = findPlayerByName(Said[1,string])
+            if (!Ply:isPlayer()) {
+                print("No player found.")
+                return
+            }
+            removeChatterCmdAccess(Ply, Said[2,string], Said[3,string])
+        }
+    }
+
+    addChatter("chatter")
+    addChatterCmd("chatter", "printChatters", "print")
+    addChatterCmd("chatter", "addUserChatterCmd", "add")
+    addChatterCmd("chatter", "removeUserChatterCmd", "remove")
+}
+
+
+
+
+
+
+
+

@@ -1,0 +1,42 @@
+@name rp/door-ai
+@inputs 
+@outputs Open
+@persist AutoClose AutoCloseTime
+@trigger 
+runOnChat(1)
+
+if (first()) {
+    #include "libs/chatter"
+    
+    AutoClose = 1
+    AutoCloseTime = 2
+    
+    function open() {
+        Open = 1
+        if (AutoClose && Open) {
+            timer("door_timer", AutoCloseTime * 1000)
+        }
+    }
+    
+    function close() {
+        Open = 0
+    }
+    
+    function toggleAutoClose() {
+        AutoClose = !AutoClose
+        print("AutoClose set to " + AutoClose)
+    }
+    
+    addChatter("door")
+    addChatterCmd("door", "open", "o")
+    addChatterCmd("door", "close", "c")
+    addChatterCmd("door", "toggleAutoClose", "ac")
+}
+
+if (chatClk()) {
+    doChatter()
+}
+
+if (clk("door_timer")) {
+    Open = 0
+}
